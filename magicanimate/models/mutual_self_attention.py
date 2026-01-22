@@ -17,7 +17,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from diffusers.models.attention import BasicTransformerBlock
 from magicanimate.models.attention import BasicTransformerBlock as _BasicTransformerBlock
-from diffusers.models.unet_2d_blocks import CrossAttnDownBlock2D, CrossAttnUpBlock2D, DownBlock2D, UpBlock2D
+try:
+    from diffusers.models.unets.unet_2d_blocks import CrossAttnDownBlock2D, CrossAttnUpBlock2D, DownBlock2D, UpBlock2D
+except ImportError:
+    from diffusers.models.unet_2d_blocks import CrossAttnDownBlock2D, CrossAttnUpBlock2D, DownBlock2D, UpBlock2D
 from .stable_diffusion_controlnet_reference import torch_dfs
 
 

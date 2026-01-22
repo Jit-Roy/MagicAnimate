@@ -40,7 +40,10 @@ from transformers import CLIPTextModel, CLIPTokenizer
 
 from diffusers.configuration_utils import FrozenDict
 from diffusers.models import AutoencoderKL
-from diffusers.pipeline_utils import DiffusionPipeline
+try:
+    from diffusers import DiffusionPipeline
+except ImportError:
+    from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import (
     DDIMScheduler,
     DPMSolverMultistepScheduler,

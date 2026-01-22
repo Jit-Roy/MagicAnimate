@@ -41,20 +41,48 @@ from diffusers.models.embeddings import (
     ImageHintTimeEmbedding,
     ImageProjection,
     ImageTimeEmbedding,
-    PositionNet,
+    # PositionNet,  # Removed in newer diffusers, using fallback
     TextImageProjection,
     TextImageTimeEmbedding,
     TextTimeEmbedding,
     TimestepEmbedding,
     Timesteps,
 )
+
+# Fallback for PositionNet if not available in diffusers
+try:
+    from diffusers.models.embeddings import PositionNet
+except ImportError:
+    # PositionNet was removed in newer diffusers, create a simple placeholder
+    class PositionNet(torch.nn.Module):
+        def __init__(self, positive_len=768, out_dim=768, feature_type="text-image"):
+            super().__init__()
+            self.positive_len = positive_len
+            self.out_dim = out_dim
+            self.feature_type = feature_type
+            self.linear_1 = torch.nn.Linear(positive_len, out_dim)
+            self.linear_2 = torch.nn.Linear(out_dim, out_dim)
+            
+        def forward(self, x):
+            x = self.linear_1(x)
+            x = torch.nn.functional.silu(x)
+            x = self.linear_2(x)
+            return x
 from diffusers.models.modeling_utils import ModelMixin
-from diffusers.models.unet_2d_blocks import (
-    UNetMidBlock2DCrossAttn,
-    UNetMidBlock2DSimpleCrossAttn,
-    get_down_block,
-    get_up_block,
-)
+try:
+    from diffusers.models.unets.unet_2d_blocks import (
+        UNetMidBlock2DCrossAttn,
+        UNetMidBlock2DSimpleCrossAttn,
+        get_down_block,
+        get_up_block,
+    )
+except ImportError:
+    from diffusers.models.unet_2d_blocks import (
+        UNetMidBlock2DCrossAttn,
+        UNetMidBlock2DSimpleCrossAttn,
+        get_down_block,
+        get_up_block,
+    )
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name

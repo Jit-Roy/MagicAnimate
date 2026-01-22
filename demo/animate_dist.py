@@ -159,7 +159,8 @@ class MagicAnimate():
             original_length = control.shape[0]
             if control.shape[0] % self.L > 0:
                 control = np.pad(control, ((0, self.L-control.shape[0] % self.L), (0, 0), (0, 0), (0, 0)), mode='edge')
-            generator = torch.Generator(device=torch.device("cuda:0"))
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            generator = torch.Generator(device=device)
             generator.manual_seed(torch.initial_seed())
             sample = self.pipeline(
                 prompt,

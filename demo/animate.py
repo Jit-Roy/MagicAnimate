@@ -54,6 +54,14 @@ class MagicAnimate():
         inference_config = OmegaConf.load(config.inference_config)
             
         motion_module = config.motion_module
+        
+        # Determine device (cuda if available, otherwise cpu)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        print(f"Using device: {self.device}, dtype: {self.dtype}")
+        if self.device.type == "cpu":
+            print("⚠️  WARNING: Running on CPU - inference will be very slow!")
+            print("   For GPU support, install PyTorch with CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121")
        
         ### >>> create animation pipeline >>> ###
         tokenizer = CLIPTokenizer.from_pretrained(config.pretrained_model_path, subfolder="tokenizer")
@@ -62,7 +70,7 @@ class MagicAnimate():
             unet = UNet3DConditionModel.from_pretrained_2d(config.pretrained_unet_path, unet_additional_kwargs=OmegaConf.to_container(inference_config.unet_additional_kwargs))
         else:
             unet = UNet3DConditionModel.from_pretrained_2d(config.pretrained_model_path, subfolder="unet", unet_additional_kwargs=OmegaConf.to_container(inference_config.unet_additional_kwargs))
-        self.appearance_encoder = AppearanceEncoderModel.from_pretrained(config.pretrained_appearance_encoder_path, subfolder="appearance_encoder").cuda()
+        self.appearance_encoder = AppearanceEncoderModel.from_pretrained(config.pretrained_appearance_encoder_path, subfolder="appearance_encoder").to(self.device)
         self.reference_control_writer = ReferenceAttentionControl(self.appearance_encoder, do_classifier_free_guidance=True, mode='write', fusion_blocks=config.fusion_blocks)
         self.reference_control_reader = ReferenceAttentionControl(unet, do_classifier_free_guidance=True, mode='read', fusion_blocks=config.fusion_blocks)
         if config.pretrained_vae_path is not None:
@@ -73,21 +81,26 @@ class MagicAnimate():
         ### Load controlnet
         controlnet   = ControlNetModel.from_pretrained(config.pretrained_controlnet_path, subfolder="densepose_controlnet")
 
-        vae.to(torch.float16)
-        unet.to(torch.float16)
-        text_encoder.to(torch.float16)
-        controlnet.to(torch.float16)
-        self.appearance_encoder.to(torch.float16)
+        vae.to(self.dtype).to(self.device)
+        unet.to(self.dtype).to(self.device)
+        text_encoder.to(self.dtype).to(self.device)
+        controlnet.to(self.dtype).to(self.device)
+        self.appearance_encoder.to(self.dtype)
         
-        unet.enable_xformers_memory_efficient_attention()
-        self.appearance_encoder.enable_xformers_memory_efficient_attention()
-        controlnet.enable_xformers_memory_efficient_attention()
+        # Enable memory efficient attention if available
+        try:
+            unet.enable_xformers_memory_efficient_attention()
+            self.appearance_encoder.enable_xformers_memory_efficient_attention()
+            controlnet.enable_xformers_memory_efficient_attention()
+            print("✓ xformers memory efficient attention enabled")
+        except Exception as e:
+            print(f"⚠️  xformers not available, using standard attention: {e}")
 
         self.pipeline = AnimationPipeline(
             vae=vae, text_encoder=text_encoder, tokenizer=tokenizer, unet=unet, controlnet=controlnet,
             scheduler=DDIMScheduler(**OmegaConf.to_container(inference_config.noise_scheduler_kwargs)),
             # NOTE: UniPCMultistepScheduler
-        ).to("cuda")
+        ).to(self.device)
 
         # 1. unet ckpt
         # 1.1 motion module
@@ -160,7 +173,7 @@ class MagicAnimate():
             original_length = control.shape[0]
             if control.shape[0] % self.L > 0:
                 control = np.pad(control, ((0, self.L-control.shape[0] % self.L), (0, 0), (0, 0), (0, 0)), mode='edge')
-            generator = torch.Generator(device=torch.device("cuda:0"))
+            generator = torch.Generator(device=self.device)
             generator.manual_seed(torch.initial_seed())
             sample = self.pipeline(
                 prompt,

@@ -468,15 +468,44 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
 
     @classmethod
     def from_pretrained_2d(cls, pretrained_model_path, subfolder=None, unet_additional_kwargs=None):
-        if subfolder is not None:
-            pretrained_model_path = os.path.join(pretrained_model_path, subfolder)
-        print(f"loaded temporal unet's pretrained weights from {pretrained_model_path} ...")
-
-        config_file = os.path.join(pretrained_model_path, 'config.json')
-        if not os.path.isfile(config_file):
-            raise RuntimeError(f"{config_file} does not exist")
-        with open(config_file, "r") as f:
-            config = json.load(f)
+        from huggingface_hub import hf_hub_download
+        
+        # Check if it's a HuggingFace repo ID or local path
+        is_local = os.path.isdir(pretrained_model_path)
+        
+        if is_local:
+            # Local path handling (original behavior)
+            if subfolder is not None:
+                pretrained_model_path = os.path.join(pretrained_model_path, subfolder)
+            print(f"loaded temporal unet's pretrained weights from {pretrained_model_path} ...")
+            config_file = os.path.join(pretrained_model_path, 'config.json')
+            if not os.path.isfile(config_file):
+                raise RuntimeError(f"{config_file} does not exist")
+            with open(config_file, "r") as f:
+                config = json.load(f)
+        else:
+            # HuggingFace Hub handling
+            print(f"Downloading temporal unet's pretrained weights from HuggingFace: {pretrained_model_path} ...")
+            try:
+                # Download config from HuggingFace
+                config_path = subfolder + "/config.json" if subfolder else "config.json"
+                config_file = hf_hub_download(
+                    repo_id=pretrained_model_path,
+                    filename=config_path,
+                    repo_type="model"
+                )
+                with open(config_file, "r") as f:
+                    config = json.load(f)
+                    
+                # Set pretrained_model_path to the cache directory for model loading
+                cache_dir = os.path.dirname(config_file)
+                if subfolder:
+                    # Go up one level if we used a subfolder
+                    cache_dir = os.path.dirname(cache_dir)
+                pretrained_model_path = cache_dir
+            except Exception as e:
+                raise RuntimeError(f"Failed to download from HuggingFace Hub: {e}")
+        
         config["_class_name"] = cls.__name__
         config["down_block_types"] = [
             "CrossAttnDownBlock3D",
