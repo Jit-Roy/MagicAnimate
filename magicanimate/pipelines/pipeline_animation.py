@@ -624,7 +624,7 @@ class AnimationPipeline(DiffusionPipeline):
         if init_latents is not None:
             latents = rearrange(init_latents, "(b f) c h w -> b c f h w", f=video_length)
         else:
-            num_channels_latents = self.unet.in_channels
+            num_channels_latents = self.unet.config.in_channels
             latents = self.prepare_latents(
                 batch_size * num_videos_per_prompt,
                 num_channels_latents,
@@ -652,9 +652,9 @@ class AnimationPipeline(DiffusionPipeline):
             num_actual_inference_steps = num_inference_steps
         
         if isinstance(source_image, str):
-            ref_image_latents = self.images2latents(np.array(Image.open(source_image).resize((width, height)))[None, :], latents_dtype).cuda()
+            ref_image_latents = self.images2latents(np.array(Image.open(source_image).resize((width, height)))[None, :], latents_dtype).to(device)
         elif isinstance(source_image, np.ndarray):
-            ref_image_latents = self.images2latents(source_image[None, :], latents_dtype).cuda()
+            ref_image_latents = self.images2latents(source_image[None, :], latents_dtype).to(device)
         
         context_scheduler = get_context_scheduler(context_schedule)
         

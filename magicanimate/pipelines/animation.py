@@ -200,7 +200,7 @@ def main(args):
         original_length = control.shape[0]
         if control.shape[0] % config.L > 0:
             control = np.pad(control, ((0, config.L-control.shape[0] % config.L), (0, 0), (0, 0), (0, 0)), mode='edge')
-        generator = torch.Generator(device=torch.device("cuda:0"))
+        generator = torch.Generator(device=device)
         generator.manual_seed(torch.initial_seed())
         sample = pipeline(
             prompt,
